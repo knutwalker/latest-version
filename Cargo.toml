@@ -1,6 +1,6 @@
 [package]
 name = "latest-version"
-version = "0.1.1"
+version = "0.1.2-alpha.0"
 description = "Check deps.dev for the latest version of artifacts"
 homepage = "https://github.com/knutwalker/latest-version/"
 repository = "https://github.com/knutwalker/latest-version/"
