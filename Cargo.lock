@@ -427,7 +427,7 @@ dependencies = [
  "console",
  "lenient_semver",
  "reqwest",
- "semver",
+ "semver 1.0.3",
  "serde_json",
  "test-case",
  "tokio",
@@ -446,7 +446,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1e69422a47c615a5d4dc300df0aeceaf8db75316d7a96b80c41f1ae0d1c6e30"
 dependencies = [
  "lenient_semver_parser",
- "semver",
+ "semver 0.11.0",
 ]
 
 [[package]]
@@ -455,7 +455,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7cb776fddcf01a2bf698446332a08b38ad591f93126f3d78880bd2e1900cbbe"
 dependencies = [
- "semver",
+ "semver 0.11.0",
 ]
 
 [[package]]
@@ -732,6 +732,12 @@ checksum = "f301af10236f6df4160f7c3f04eec6dbc70ace82d23326abad5edee88801c6b6"
 dependencies = [
  "semver-parser",
 ]
+
+[[package]]
+name = "semver"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f3aac57ee7f3272d8395c6e4f502f434f0e289fcd62876f70daa008c20dcabe"
 
 [[package]]
 name = "semver-parser"
