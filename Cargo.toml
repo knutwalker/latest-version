@@ -2,6 +2,10 @@
 name = "latest-version"
 version = "0.1.0"
 description = "Check deps.dev for the latest version of artifacts"
+homepage = "https://github.com/knutwalker/latest-version/"
+repository = "https://github.com/knutwalker/latest-version/"
+categories = ["command-line-utilities"]
+keywords = ["latest", "version", "dependencies", "maven", "deps-dot-dev"]
 authors = ["Paul Horn <developer@knutwalker.de>"]
 license = "MIT OR Apache-2.0"
 edition = "2018"
