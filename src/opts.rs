@@ -133,40 +133,65 @@ fn parse_coordinates(input: &str) -> Result<VersionCheck, Error> {
 
             Coordinates::Cargo(package.into())
         }
-        Some("npm") => {
-            let (known_scope, scope_or_package) = match segments.next() {
-                Some(scope) if scope.starts_with('@') && scope.len() > 1 => (true, scope),
-                Some(scope_or_package) if !scope_or_package.is_empty() => (false, scope_or_package),
-                _ => return Err(Error::Missing("package", input.into())),
-            };
-
-            if known_scope {
-                let package = match segments.next() {
-                    Some(package) if !package.is_empty() => package,
-                    _ => return Err(Error::Missing("package", input.into())),
-                };
-                Coordinates::Npm {
-                    scope: Some(scope_or_package.trim_start_matches('@').into()),
-                    package: package.into(),
-                }
-            } else {
-                match segments.peek() {
-                    Some(package) if !package.is_empty() && VersionReq::parse(package).is_err() => {
-                        let coords = Coordinates::Npm {
-                            scope: Some(scope_or_package.into()),
-                            package: (*package).into(),
-                        };
-                        let _ = segments.next();
-                        coords
+        Some("npm") => match segments.next() {
+            Some(scope_or_package) if !scope_or_package.is_empty() => {
+                if scope_or_package.starts_with('@') {
+                    let scope = scope_or_package.trim_start_matches('@');
+                    if scope.is_empty() {
+                        return Err(Error::Missing("scope", input.into()));
                     }
-                    _ => Coordinates::Npm {
-                        scope: None,
-                        package: scope_or_package.into(),
-                    },
+                    if let Some((scope, package)) = scope.split_once('/') {
+                        if package.is_empty() {
+                            return Err(Error::Missing("package", input.into()));
+                        }
+                        Coordinates::Npm {
+                            scope: Some(scope.into()),
+                            package: package.into(),
+                        }
+                    } else {
+                        let package = match segments.next() {
+                            Some(package) if !package.is_empty() => package,
+                            _ => return Err(Error::Missing("package", input.into())),
+                        };
+                        Coordinates::Npm {
+                            scope: Some(scope.into()),
+                            package: package.into(),
+                        }
+                    }
+                } else {
+                    if let Some((scope, package)) = scope_or_package.split_once('/') {
+                        if scope.is_empty() {
+                            return Err(Error::Missing("scope", input.into()));
+                        }
+                        if package.is_empty() {
+                            return Err(Error::Missing("package", input.into()));
+                        }
+                        Coordinates::Npm {
+                            scope: Some(scope.into()),
+                            package: package.into(),
+                        }
+                    } else {
+                        match segments.peek() {
+                            Some(package)
+                                if !package.is_empty() && VersionReq::parse(package).is_err() =>
+                            {
+                                let coords = Coordinates::Npm {
+                                    scope: Some(scope_or_package.into()),
+                                    package: (*package).into(),
+                                };
+                                let _ = segments.next();
+                                coords
+                            }
+                            _ => Coordinates::Npm {
+                                scope: None,
+                                package: scope_or_package.into(),
+                            },
+                        }
+                    }
                 }
             }
-        }
-
+            _ => return Err(Error::Missing("package", input.into())),
+        },
         Some("go") => match segments.next() {
             Some(gomod) if !gomod.is_empty() && gomod.contains('/') => {
                 Coordinates::AnyGo(gomod.into())
