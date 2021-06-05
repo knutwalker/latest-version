@@ -1,6 +1,4 @@
-<p align="center">
-  <h1>latest-version</h1>
-</p>
+<h1 align="center">latest-version</h1>
 
 <p align="center">
   <a href="https://github.com/knutwalker/latest-version/actions">
@@ -33,7 +31,7 @@
   </a>
 </p>
 
-_Check deps.dev for the latest version of any artifact_
+<p align="center"><em>Check deps.dev for the latest version of any artifact</em></p>
 
 # Installation
 
@@ -112,7 +110,6 @@ Matching against major compatible releases. Note that `1.3` does not produce any
 Inclusion of pre releases.
 
     $ latest-version org.neo4j.gds:proc:~1.1:~1.3:1 --include-pre-releases
-    Latest version(s) for org.neo4j.gds:proc:
     Latest version for maven:org.neo4j.gds:proc matching >=1.1.0, <1.2.0: 1.1.6
     Latest version for maven:org.neo4j.gds:proc matching >=1.3.0, <1.4.0: 1.3.5
     Latest version for maven:org.neo4j.gds:proc matching >=1.0.0, <2.0.0: 1.4.0-alpha02
@@ -177,11 +174,11 @@ Cargo crates require an explicit `cargo:` system identifier, followed by a **sin
 
 ## NPM packages
 
-`npm[:$scope]:$package`
+`npm:[$scope:]$package`
 
 NPM packages require an explicit `npm:` system identifier, followed by an optional scope, followed by the package.
 
-In the easiest form, there is a single package specifier
+In the easiest form, npm requires only a single package specifier
 
     $ latest-version npm:neo4j-driver
     Latest version for npm:neo4j-driver matching >=0.0.0: 4.3.0
@@ -201,7 +198,7 @@ Searching for scoped packages where the package could be parsed as a version req
 such as [`@euler/1`](https://www.npmjs.com/package/@euler/1/v/0.0.5)
 requires the usage of either `@` or `/` to disambiguate from just searching for `euler` and the version requirement `1`.
 
-    $ latest-version npm:euler:1 npm:euler/1 npm:@euler:1 npm:@euler/1
+    $ latest-version npm:euler:1 npm:@euler:1 npm:euler/1 npm:@euler/1
     No version for npm:euler matching >=1.0.0, <2.0.0   #  <- `npm:euler:1` -> unscoped `euler`, version 1
     Latest version for npm:@euler/1 matching >=0.0.0: 0.0.5  # using `@` to disambiguate
     Latest version for npm:@euler/1 matching >=0.0.0: 0.0.5  # using `/`  disambiguate
@@ -228,5 +225,13 @@ Note that using a single identifier with `/` does require a repository:
     $ latest-version go:neo4j/neo4j-go-driver
     No version for go:neo4j/neo4j-go-driver matching >=0.0.0
 
+# About the data
+
+`latest-version` uses [Open Source Insights (deps.dev)](https://deps.dev/about) to provide the data.
+Package information is usually up to date within the hour.
+
+See [What packages does Insights cover?](https://deps.dev/faq#what-packages-does-insights-cover)
+and [How fresh is the information?](https://deps.dev/faq#how-fresh-is-the-information)
+for more information.
 
 License: MIT OR Apache-2.0
