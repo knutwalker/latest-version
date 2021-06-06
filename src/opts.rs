@@ -7,7 +7,7 @@ use clap::{
     },
     Arg,
 };
-use semver::{ReqParseError, VersionReq};
+use semver::VersionReq;
 use std::{fmt::Display, str::FromStr};
 
 #[derive(Debug)]
@@ -87,10 +87,10 @@ Multiple checks will be run concurrently and may be printed out of order."#)
 }
 
 #[non_exhaustive]
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub(crate) enum Error {
     Missing(&'static str, String),
-    InvalidRange(String, ReqParseError),
+    InvalidRange(String, semver::Error),
 }
 
 impl FromStr for VersionCheck {
@@ -244,7 +244,11 @@ fn parse_coordinates(input: &str) -> Result<VersionCheck, Error> {
 }
 
 fn parse_version(version: &str) -> Result<VersionReq, Error> {
-    VersionReq::parse(version).map_err(|e| Error::InvalidRange(version.into(), e))
+    if version.is_empty() {
+        Ok(VersionReq::STAR)
+    } else {
+        VersionReq::parse(version).map_err(|e| Error::InvalidRange(version.into(), e))
+    }
 }
 
 impl Display for Error {
@@ -314,20 +318,26 @@ mod tests {
         assert_eq!(checks.next(), None);
     }
 
-    #[test_case(":foo" => Error::Missing("group_id", ":foo".into()); "empty_group_id_1")]
-    #[test_case(":foo:" => Error::Missing("group_id", ":foo:".into()); "empty_group_id_2")]
-    #[test_case("" => Error::Missing("group_id", "".into()); "empty_group_id_3")]
-    #[test_case(":" => Error::Missing("group_id", ":".into()); "empty_group_id_4")]
-    #[test_case("::" => Error::Missing("group_id", "::".into()); "empty_group_id_5")]
-    #[test_case("  " => Error::Missing("group_id", "  ".into()); "empty_group_id_6")]
-    #[test_case("  :" => Error::Missing("group_id", "  :".into()); "empty_group_id_7")]
-    #[test_case("foo:" => Error::Missing("artifact_id", "foo:".into()); "empty_artifact_1")]
-    #[test_case("foo::" => Error::Missing("artifact_id", "foo::".into()); "empty_artifact_2")]
-    #[test_case("foo: " => Error::Missing("artifact_id", "foo: ".into()); "empty_artifact_3")]
-    #[test_case("foo: :" => Error::Missing("artifact_id", "foo: :".into()); "empty_artifact_4")]
-    #[test_case("foo" => Error::Missing("artifact_id", "foo".into()); "missing_artifact")]
-    fn test_invalid_coords(arg: &str) -> Error {
-        parse_coordinates(arg).unwrap_err()
+    #[test_case(":foo", Error::Missing("group_id", ":foo".into()); "empty_group_id_1")]
+    #[test_case(":foo:", Error::Missing("group_id", ":foo:".into()); "empty_group_id_2")]
+    #[test_case("", Error::Missing("group_id", "".into()); "empty_group_id_3")]
+    #[test_case(":", Error::Missing("group_id", ":".into()); "empty_group_id_4")]
+    #[test_case("::", Error::Missing("group_id", "::".into()); "empty_group_id_5")]
+    #[test_case("  ", Error::Missing("group_id", "  ".into()); "empty_group_id_6")]
+    #[test_case("  :", Error::Missing("group_id", "  :".into()); "empty_group_id_7")]
+    #[test_case("foo:", Error::Missing("artifact_id", "foo:".into()); "empty_artifact_1")]
+    #[test_case("foo::", Error::Missing("artifact_id", "foo::".into()); "empty_artifact_2")]
+    #[test_case("foo: ", Error::Missing("artifact_id", "foo: ".into()); "empty_artifact_3")]
+    #[test_case("foo: :", Error::Missing("artifact_id", "foo: :".into()); "empty_artifact_4")]
+    #[test_case("foo", Error::Missing("artifact_id", "foo".into()); "missing_artifact")]
+    fn test_invalid_coords(arg: &str, expected: Error) {
+        match (parse_coordinates(arg).unwrap_err(), expected) {
+            (Error::Missing(lhs1, lhs2), Error::Missing(rhs1, rhs2)) => {
+                assert_eq!(lhs1, rhs1);
+                assert_eq!(lhs2, rhs2);
+            }
+            (lhs, rhs) => panic!("Different errors: left == {} right == {}", lhs, rhs),
+        }
     }
 
     #[test_case(":foo", "Missing group_id in :foo"; "empty_group_id_1")]
@@ -364,8 +374,8 @@ mod tests {
     #[test_case("foo:bar:>1.2.3", vec![">1.2.3"]; "gt version")]
     #[test_case("foo:bar:<=1.2.3", vec!["<=1.2.3"]; "lte version")]
     #[test_case("foo:bar:>=1.2.3", vec![">=1.2.3"]; "gte version")]
-    #[test_case("foo:bar:1.2.3 2", vec!["1.2.3 2"]; "multi range with space")]
-    #[test_case("foo:bar:1.2.3||2", vec!["1.2.3||2"]; "multi range with or")]
+    #[test_case("foo:bar:1.2.3, 2", vec!["1.2.3, 2"]; "multi range with space")]
+    #[test_case("foo:bar:1.2.3,2", vec!["1.2.3,2"]; "multi range with comma")]
     #[test_case("foo:bar:1.2.3:2", vec!["1.2.3", "2"]; "multiple ranges")]
     fn test_version_arg_range(arg: &str, ranges: Vec<&str>) {
         let ranges = ranges
@@ -392,7 +402,7 @@ mod tests {
     #[test_case("foo:bar:*42", "*42"; "mixed star and version")]
     #[test_case("foo:bar:1.3.3.7", "1.3.3.7"; "4 segments")]
     #[test_case("foo:bar:1:foo", "foo"; "second version fails")]
-    #[test_case("foo:bar:1.2.3,2", "1.2.3,2"; "multi range with comma separator")]
+    #[test_case("foo:bar:1.2.3 2", "1.2.3 2"; "multi range with space separator")]
     fn test_version_arg_invalid_range(arg: &str, spec: &str) {
         console::set_colors_enabled(false);
         let err = Opts::of(&[arg]).unwrap_err();
