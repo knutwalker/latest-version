@@ -27,12 +27,7 @@ impl Versions {
         mut requirements: Vec<VersionReq>,
     ) -> Vec<(VersionReq, Option<String>)> {
         if requirements.is_empty() {
-            let req = if allow_pre_release {
-                VersionReq::STAR
-            } else {
-                VersionReq::parse("*").expect("Parsing `*` into a version range always succeeds.")
-            };
-            requirements.push(req);
+            requirements.push(VersionReq::STAR);
         }
         let latest = self.find_latest_versions(&requirements[..], allow_pre_release);
         requirements.into_iter().zip(latest.into_iter()).collect()
