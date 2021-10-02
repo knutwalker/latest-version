@@ -58,7 +58,7 @@ impl Opts {
             ).arg(
                 Arg::new("version-checks")
                     .takes_value(true)
-                    .multiple(true)
+                    .multiple_values(true)
                     .min_values(1)
                     .validator(parse_coordinates)
                     .about("The maven coordinates to check for. Can be specified multiple times")
@@ -284,14 +284,20 @@ mod tests {
     #[test]
     fn empty_args_shows_help() {
         let err = Opts::of(&[]).unwrap_err();
-        assert_eq!(err.kind, ErrorKind::MissingArgumentOrSubcommand);
+        assert_eq!(
+            err.kind,
+            ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+        );
     }
 
     #[test]
     fn test_empty_version_arg() {
+        console::set_colors_enabled(false);
         let err = Opts::of(&[""]).unwrap_err();
-        assert_eq!(err.kind, ErrorKind::EmptyValue);
-        assert_eq!(err.info, vec![String::from("<version-checks>...")]);
+        assert_eq!(err.kind, ErrorKind::ValueValidation);
+        let expected = ["<version-checks>...", "", "Missing group_id in "];
+        let expected = expected.map(String::from);
+        assert_eq!(&err.info[..], &expected[..]);
     }
 
     #[test_case("foo:bar", "foo", "bar"; "case1")]
