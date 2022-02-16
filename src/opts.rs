@@ -1,12 +1,5 @@
 use crate::{Config, Coordinates, VersionCheck};
-use clap::{
-    App,
-    AppSettings::{
-        AllowNegativeNumbers, ArgRequiredElseHelp, ColoredHelp, DeriveDisplayOrder,
-        UnifiedHelpMessage,
-    },
-    Arg,
-};
+use clap::{AppSettings::DeriveDisplayOrder, Arg, Command};
 use semver::VersionReq;
 use std::{fmt::Display, str::FromStr};
 
@@ -26,7 +19,7 @@ impl Opts {
     fn of(args: &[&str]) -> Result<Self, clap::Error> {
         let args = args.to_vec();
         let matches = Self::app()
-            .setting(clap::AppSettings::NoBinaryName)
+            .no_binary_name(true)
             .try_get_matches_from(args)?;
         Ok(Self::from_matches(matches))
     }
@@ -41,18 +34,16 @@ impl Opts {
         self.version_checks
     }
 
-    fn app() -> App<'static> {
-        App::new(env!("CARGO_BIN_NAME"))
+    fn app() -> Command<'static> {
+        Command::new(env!("CARGO_BIN_NAME"))
             .about(env!("CARGO_PKG_DESCRIPTION"))
             .version(env!("CARGO_PKG_VERSION"))
-            .setting(AllowNegativeNumbers)
-            .setting(ArgRequiredElseHelp)
-            .setting(ColoredHelp)
+            .allow_negative_numbers(true)
+            .arg_required_else_help(true)
             .setting(DeriveDisplayOrder)
-            .setting(UnifiedHelpMessage)
             .arg(
                 Arg::new("include-pre-releases")
-                    .about("Also consider pre releases")
+                    .help("Also consider pre releases")
                     .short('i')
                     .long("include-pre-releases"),
             ).arg(
@@ -61,8 +52,8 @@ impl Opts {
                     .multiple_values(true)
                     .min_values(1)
                     .validator(parse_coordinates)
-                    .about("The maven coordinates to check for. Can be specified multiple times")
-                    .long_about(r#"
+                    .help("The maven coordinates to check for. Can be specified multiple times")
+                    .long_help(r#"
 The maven coordinates to check for. Can be specified multiple times.
 
 These arguments take the form of `{groupId}:{artifactId}[:{version}]*`.
@@ -158,35 +149,33 @@ fn parse_coordinates(input: &str) -> Result<VersionCheck, Error> {
                             package: package.into(),
                         }
                     }
+                } else if let Some((scope, package)) = scope_or_package.split_once('/') {
+                    if scope.is_empty() {
+                        return Err(Error::Missing("scope", input.into()));
+                    }
+                    if package.is_empty() {
+                        return Err(Error::Missing("package", input.into()));
+                    }
+                    Coordinates::Npm {
+                        scope: Some(scope.into()),
+                        package: package.into(),
+                    }
                 } else {
-                    if let Some((scope, package)) = scope_or_package.split_once('/') {
-                        if scope.is_empty() {
-                            return Err(Error::Missing("scope", input.into()));
+                    match segments.peek() {
+                        Some(package)
+                            if !package.is_empty() && VersionReq::parse(package).is_err() =>
+                        {
+                            let coords = Coordinates::Npm {
+                                scope: Some(scope_or_package.into()),
+                                package: (*package).into(),
+                            };
+                            let _ = segments.next();
+                            coords
                         }
-                        if package.is_empty() {
-                            return Err(Error::Missing("package", input.into()));
-                        }
-                        Coordinates::Npm {
-                            scope: Some(scope.into()),
-                            package: package.into(),
-                        }
-                    } else {
-                        match segments.peek() {
-                            Some(package)
-                                if !package.is_empty() && VersionReq::parse(package).is_err() =>
-                            {
-                                let coords = Coordinates::Npm {
-                                    scope: Some(scope_or_package.into()),
-                                    package: (*package).into(),
-                                };
-                                let _ = segments.next();
-                                coords
-                            }
-                            _ => Coordinates::Npm {
-                                scope: None,
-                                package: scope_or_package.into(),
-                            },
-                        }
+                        _ => Coordinates::Npm {
+                            scope: None,
+                            package: scope_or_package.into(),
+                        },
                     }
                 }
             }
@@ -278,14 +267,17 @@ impl std::error::Error for Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::ErrorKind;
+    use clap::{
+        error::{ContextKind, ContextValue},
+        ErrorKind,
+    };
     use test_case::test_case;
 
     #[test]
     fn empty_args_shows_help() {
         let err = Opts::of(&[]).unwrap_err();
         assert_eq!(
-            err.kind,
+            err.kind(),
             ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
         );
     }
@@ -294,10 +286,18 @@ mod tests {
     fn test_empty_version_arg() {
         console::set_colors_enabled(false);
         let err = Opts::of(&[""]).unwrap_err();
-        assert_eq!(err.kind, ErrorKind::ValueValidation);
-        let expected = ["<version-checks>...", "", "Missing group_id in "];
-        let expected = expected.map(String::from);
-        assert_eq!(&err.info[..], &expected[..]);
+        assert_eq!(err.kind(), ErrorKind::ValueValidation);
+
+        let arg = ContextValue::String("<version-checks>...".into());
+        let value = ContextValue::String("".into());
+
+        let expected = vec![
+            (ContextKind::InvalidArg, &arg),
+            (ContextKind::InvalidValue, &value),
+        ];
+
+        let context = err.context().collect::<Vec<_>>();
+        assert_eq!(context, expected);
     }
 
     #[test_case("foo:bar", "foo", "bar"; "case1")]
@@ -346,25 +346,31 @@ mod tests {
         }
     }
 
-    #[test_case(":foo", "Missing group_id in :foo"; "empty_group_id_1")]
-    #[test_case(":foo:", "Missing group_id in :foo:"; "empty_group_id_2")]
-    #[test_case(":", "Missing group_id in :"; "empty_group_id_4")]
-    #[test_case("::", "Missing group_id in ::"; "empty_group_id_5")]
-    #[test_case("  ", "Missing group_id in   "; "empty_group_id_6")]
-    #[test_case("  :", "Missing group_id in   :"; "empty_group_id_7")]
-    #[test_case("foo:", "Missing artifact_id in foo:"; "empty_artifact_1")]
-    #[test_case("foo::", "Missing artifact_id in foo::"; "empty_artifact_2")]
-    #[test_case("foo: ", "Missing artifact_id in foo: "; "empty_artifact_3")]
-    #[test_case("foo: :", "Missing artifact_id in foo: :"; "empty_artifact_4")]
-    #[test_case("foo", "Missing artifact_id in foo"; "missing_artifact")]
-    fn test_version_arg_invalid_coords(arg: &str, msg: &str) {
-        console::set_colors_enabled(false);
+    #[test_case(":foo"; "empty_group_id_1")]
+    #[test_case(":foo:"; "empty_group_id_2")]
+    #[test_case(":"; "empty_group_id_4")]
+    #[test_case("::"; "empty_group_id_5")]
+    #[test_case("  "; "empty_group_id_6")]
+    #[test_case("  :"; "empty_group_id_7")]
+    #[test_case("foo:"; "empty_artifact_1")]
+    #[test_case("foo::"; "empty_artifact_2")]
+    #[test_case("foo: "; "empty_artifact_3")]
+    #[test_case("foo: :"; "empty_artifact_4")]
+    #[test_case("foo"; "missing_artifact")]
+    fn test_version_arg_invalid_coords(arg: &str) {
         let err = Opts::of(&[arg]).unwrap_err();
-        assert_eq!(err.kind, ErrorKind::ValueValidation);
-        assert_eq!(
-            err.to_string(),
-            format!("error: Invalid value for '<version-checks>...': {}\n\nFor more information try --help\n", msg)
-        );
+        assert_eq!(err.kind(), ErrorKind::ValueValidation);
+
+        let value = ContextValue::String(arg.into());
+        let arg = ContextValue::String("<version-checks>...".into());
+
+        let expected = vec![
+            (ContextKind::InvalidArg, &arg),
+            (ContextKind::InvalidValue, &value),
+        ];
+
+        let context = err.context().collect::<Vec<_>>();
+        assert_eq!(context, expected);
     }
 
     #[test_case("foo:bar:1", vec!["1"]; "version 1")]
@@ -396,27 +402,33 @@ mod tests {
         assert_eq!(checks.next(), None);
     }
 
-    #[test_case("foo:bar:01", "01"; "major with leading 0")]
-    #[test_case("foo:bar:1.02", "1.02"; "minor with leading 0")]
-    #[test_case("foo:bar:.", "."; "missing major")]
-    #[test_case("foo:bar:1.", "1."; "trailing period before minor")]
-    #[test_case("foo:bar:1..", "1.."; "two trailing periods")]
-    #[test_case("foo:bar:1.2.", "1.2."; "trailing period before path")]
-    #[test_case("foo:bar:qux", "qux"; "non numeric major")]
-    #[test_case("foo:bar:1.qux", "1.qux"; "non numeric minor")]
-    #[test_case("foo:bar:-42", "-42"; "negative major")]
-    #[test_case("foo:bar:*42", "*42"; "mixed star and version")]
-    #[test_case("foo:bar:1.3.3.7", "1.3.3.7"; "4 segments")]
-    #[test_case("foo:bar:1:foo", "foo"; "second version fails")]
-    #[test_case("foo:bar:1.2.3 2", "1.2.3 2"; "multi range with space separator")]
-    fn test_version_arg_invalid_range(arg: &str, spec: &str) {
-        console::set_colors_enabled(false);
+    #[test_case("foo:bar:01"; "major with leading 0")]
+    #[test_case("foo:bar:1.02"; "minor with leading 0")]
+    #[test_case("foo:bar:."; "missing major")]
+    #[test_case("foo:bar:1."; "trailing period before minor")]
+    #[test_case("foo:bar:1.."; "two trailing periods")]
+    #[test_case("foo:bar:1.2."; "trailing period before path")]
+    #[test_case("foo:bar:qux"; "non numeric major")]
+    #[test_case("foo:bar:1.qux"; "non numeric minor")]
+    #[test_case("foo:bar:-42"; "negative major")]
+    #[test_case("foo:bar:*42"; "mixed star and version")]
+    #[test_case("foo:bar:1.3.3.7"; "4 segments")]
+    #[test_case("foo:bar:1:foo"; "second version fails")]
+    #[test_case("foo:bar:1.2.3 2"; "multi range with space separator")]
+    fn test_version_arg_invalid_range(arg: &str) {
         let err = Opts::of(&[arg]).unwrap_err();
-        assert_eq!(err.kind, ErrorKind::ValueValidation);
-        assert_eq!(
-            err.to_string(),
-            format!("error: Invalid value for '<version-checks>...': Could not parse {} into a semantic version range. Please provide a valid range according to https://www.npmjs.com/package/semver#advanced-range-syntax\n\nFor more information try --help\n", spec)
-        );
+        assert_eq!(err.kind(), ErrorKind::ValueValidation);
+
+        let value = ContextValue::String(arg.into());
+        let arg = ContextValue::String("<version-checks>...".into());
+
+        let expected = vec![
+            (ContextKind::InvalidArg, &arg),
+            (ContextKind::InvalidValue, &value),
+        ];
+
+        let context = err.context().collect::<Vec<_>>();
+        assert_eq!(context, expected);
     }
 
     #[test]
