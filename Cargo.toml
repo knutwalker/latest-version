@@ -18,7 +18,7 @@ console = { version = "0.15.0", default-features = false }
 lenient_semver = "0.4.2"
 reqwest = { version = "0.11.9", default-features = false, features = ["gzip", "rustls-tls", "json"] }
 semver = "1.0.6"
-serde_json = "1.0.79"
+serde_json = "1.0.82"
 tokio = { version = "1.17.0", features = ["rt", "io-std"] }
 
 [dev-dependencies]
