@@ -12,7 +12,7 @@ edition = "2018"
 resolver = "2"
 
 [dependencies]
-clap = { version = "3.1.2", default-features = false, features = ["color", "std"] }
+clap = { version = "4.0.9", default-features = false, features = ["color", "std"] }
 color-eyre = { version = "0.6.0", default-features = false }
 console = { version = "0.15.0", default-features = false }
 lenient_semver = "0.4.2"
