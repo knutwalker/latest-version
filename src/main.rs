@@ -97,14 +97,12 @@ async fn run_check_and_report(
 
 fn check_url(check: &VersionCheck) -> Url {
     let mut url = Url::parse("https://deps.dev/_/s").expect("this is a valid url");
-    url.path_segments_mut()
-        .expect("url can be a base")
-        .extend(std::array::IntoIter::new([
-            check.coordinates.system_slug(),
-            "p",
-            &check.coordinates.package_slug(),
-            "versions",
-        ]));
+    url.path_segments_mut().expect("url can be a base").extend([
+        check.coordinates.system_slug(),
+        "p",
+        &check.coordinates.package_slug(),
+        "versions",
+    ]);
     url
 }
 
@@ -113,16 +111,13 @@ async fn query_versions(client: &Client, url: Url) -> Result<Versions> {
     let versions = response
         .get("versions")
         .and_then(|v| v.as_array())
-        .map_or_else(
-            || Versions::default(),
-            |v| {
-                v.iter()
-                    .filter_map(|v| v.get("version"))
-                    .filter_map(|v| v.as_str())
-                    .map(String::from)
-                    .collect()
-            },
-        );
+        .map_or_else(Versions::default, |v| {
+            v.iter()
+                .filter_map(|v| v.get("version"))
+                .filter_map(|v| v.as_str())
+                .map(String::from)
+                .collect()
+        });
     Ok(versions)
 }
 

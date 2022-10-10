@@ -1,5 +1,5 @@
 use crate::{Config, Coordinates, VersionCheck};
-use clap::{AppSettings::DeriveDisplayOrder, Arg, Command};
+use clap::{Arg, ArgAction, Command};
 use semver::VersionReq;
 use std::{fmt::Display, str::FromStr};
 
@@ -34,24 +34,23 @@ impl Opts {
         self.version_checks
     }
 
-    fn app() -> Command<'static> {
+    fn app() -> Command {
         Command::new(env!("CARGO_BIN_NAME"))
             .about(env!("CARGO_PKG_DESCRIPTION"))
             .version(env!("CARGO_PKG_VERSION"))
-            .allow_negative_numbers(true)
             .arg_required_else_help(true)
-            .setting(DeriveDisplayOrder)
             .arg(
                 Arg::new("include-pre-releases")
+                    .action(ArgAction::SetTrue)
                     .help("Also consider pre releases")
                     .short('i')
                     .long("include-pre-releases"),
             ).arg(
                 Arg::new("version-checks")
-                    .takes_value(true)
-                    .multiple_values(true)
-                    .min_values(1)
-                    .validator(parse_coordinates)
+                    .action(ArgAction::Append)
+                    .num_args(1..)
+                    .allow_negative_numbers(true)
+                    .value_parser(parse_coordinates)
                     .help("The maven coordinates to check for. Can be specified multiple times")
                     .long_help(r#"
 The maven coordinates to check for. Can be specified multiple times.
@@ -66,13 +65,12 @@ Multiple checks will be run concurrently and may be printed out of order."#)
                     )
     }
 
-    fn from_matches(matches: clap::ArgMatches) -> Self {
+    fn from_matches(mut matches: clap::ArgMatches) -> Self {
         Opts {
             version_checks: matches
-                .values_of("version-checks")
-                .map(|v| v.map(|s| parse_coordinates(s).unwrap()).collect())
-                .unwrap_or_else(Vec::new),
-            include_pre_releases: matches.is_present("include-pre-releases"),
+                .remove_many("version-checks")
+                .map_or_else(Vec::new, |v| v.collect()),
+            include_pre_releases: matches.get_flag("include-pre-releases"),
         }
     }
 }
@@ -267,10 +265,7 @@ impl std::error::Error for Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::{
-        error::{ContextKind, ContextValue},
-        ErrorKind,
-    };
+    use clap::error::{ContextKind, ContextValue, ErrorKind};
     use test_case::test_case;
 
     #[test]
@@ -288,7 +283,7 @@ mod tests {
         let err = Opts::of(&[""]).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::ValueValidation);
 
-        let arg = ContextValue::String("<version-checks>...".into());
+        let arg = ContextValue::String("[version-checks]...".into());
         let value = ContextValue::String("".into());
 
         let expected = vec![
@@ -362,7 +357,7 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::ValueValidation);
 
         let value = ContextValue::String(arg.into());
-        let arg = ContextValue::String("<version-checks>...".into());
+        let arg = ContextValue::String("[version-checks]...".into());
 
         let expected = vec![
             (ContextKind::InvalidArg, &arg),
@@ -420,7 +415,7 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::ValueValidation);
 
         let value = ContextValue::String(arg.into());
-        let arg = ContextValue::String("<version-checks>...".into());
+        let arg = ContextValue::String("[version-checks]...".into());
 
         let expected = vec![
             (ContextKind::InvalidArg, &arg),
