@@ -30,7 +30,7 @@ serde_json = "1.0.87"
 tokio = { version = "1.21.2", features = ["rt", "io-std"] }
 
 [dev-dependencies]
-test-case = "2.2.2"
+test-case = "3.0.0"
 
 [profile.dev.package.backtrace]
 opt-level = 3
